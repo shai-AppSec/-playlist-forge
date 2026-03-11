@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Playlist Forge</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0a;color:#f0f0f0;font-family:'DM Mono',monospace;min-height:100vh;padding:40px 20px}
+  .container{max-width:600px;margin:0 auto}
+  h1{font-size:28px;font-weight:700;margin-bottom:4px;letter-spacing:-0.5px}
+  .subtitle{color:#444;font-size:12px;margin-bottom:40px}
+  label{display:block;font-size:11px;color:#555;margin-bottom:8px;letter-spacing:1px;text-transform:uppercase}
+  input,textarea{width:100%;background:#111;border:1px solid #222;border-radius:8px;padding:12px 16px;color:#f0f0f0;font-size:14px;font-family:'DM Mono',monospace;transition:border 0.2s;outline:none}
+  input:focus,textarea:focus{border-color:#1DB954}
+  textarea{resize:vertical;line-height:1.7}
+  .field{margin-bottom:24px}
+  .drop-zone{border:2px dashed #2a2a2a;border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all 0.2s}
+  .drop-zone:hover,.drop-zone.dragover{border-color:#1DB954;background:rgba(29,185,84,0.04)}
+  #preview-img{max-height:160px;max-width:100%;border-radius:8px;margin-bottom:12px;display:none}
+  .btn-primary{background:#1DB954;color:#000;border:none;border-radius:50px;padding:14px 32px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;transition:all 0.2s;width:100%}
+  .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(29,185,84,0.3)}
+  .btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+  .btn-sec{background:transparent;color:#888;border:1px solid #222;border-radius:50px;padding:10px 24px;font-size:12px;cursor:pointer;font-family:'DM Mono',monospace;transition:all 0.2s}
+  .btn-sec:hover{border-color:#555;color:#f0f0f0}
+  .btn-sec:disabled{opacity:0.4;cursor:not-allowed}
+  .status-log{margin-top:24px;background:#0d0d0d;border:1px solid #1a1a1a;border-radius:8px;padding:16px;max-height:200px;overflow-y:auto;display:none}
+  .status-line{font-size:12px;line-height:1.8}
+  .status-line.success{color:#1DB954}
+  .status-line.error{color:#ff4444}
+  .status-line.info{color:#555}
+  .success-box{margin-top:20px;background:rgba(29,185,84,0.06);border:1px solid rgba(29,185,84,0.2);border-radius:8px;padding:20px;text-align:center;display:none}
+  .success-box p{color:#1DB954;font-size:14px;margin:8px 0 12px}
+  .success-box a{color:#1DB954;font-size:12px;text-decoration:none;border:1px solid rgba(29,185,84,0.3);padding:8px 20px;border-radius:50px}
+  .auth-screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+  .hint{color:#333;font-size:11px;margin-top:6px}
+  ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="auth-screen" id="auth-screen">
+  <div style="font-size:64px;margin-bottom:16px">🎵</div>
+  <h1 style="font-size:36px;margin-bottom:8px">Playlist Forge</h1>
+  <p style="color:#666;font-size:14px;margin-bottom:40px;line-height:1.6">Drop a song list or photo.<br>Claude reads it. Spotify gets it.</p>
+  <button class="btn-primary" style="width:auto;padding:16px 40px" onclick="connectSpotify()">Connect Spotify →</button>
+  <p style="color:#333;font-size:11px;margin-top:20px">You'll be redirected to Spotify to authorize</p>
+</div>
+
+<div class="container" id="app-screen" style="display:none">
+  <h1>Playlist Forge</h1>
+  <p class="subtitle">Connected to Spotify ✓</p>
+
+  <div class="field">
+    <label>Playlist Name</label>
+    <input type="text" id="playlist-name" placeholder="My Awesome Playlist"/>
+  </div>
+
+  <div class="field">
+    <label>Upload Photo of Song List</label>
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()"
+         ondragover="event.preventDefault();this.classList.add('dragover')"
+         ondragleave="this.classList.remove('dragover')"
+         ondrop="handleDrop(event)">
+      <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this.files[0])"/>
+      <img id="preview-img" src="" alt="preview"/>
+      <div id="drop-placeholder">
+        <div style="font-size:32px;margin-bottom:8px">📷</div>
+        <p style="color:#444;font-size:13px">Drop an image here or click to upload</p>
+        <small style="color:#333;font-size:11px">Setlists, screenshots, handwritten lists</small>
+      </div>
+      <button class="btn-sec" id="extract-btn" style="display:none;margin-top:8px" onclick="event.stopPropagation();extractSongs()">✦ Extract songs from image</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Song List</label>
+    <textarea id="songs" rows="10" placeholder="Artist - Song Title&#10;Artist - Song Title&#10;..."></textarea>
+    <p class="hint">One song per line · Format: Artist - Song Title</p>
+  </div>
+
+  <button class="btn-primary" id="create-btn" onclick="createPlaylist()">Create Playlist on Spotify →</button>
+  <div class="status-log" id="status-log"></div>
+  <div class="success-box" id="success-box">
+    <div style="font-size:24px">🎉</div>
+    <p>Playlist created successfully!</p>
+    <a id="playlist-link" href="#" target="_blank">Open in Spotify →</a>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID = "4c472b635ca2492caeb7a4effee9732b";
+const SCOPES = "playlist-modify-public playlist-modify-private";
+let token = null;
+let imageFile = null;
+
+function base64urlencode(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function generateCodeVerifier() {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return base64urlencode(arr);
+}
+async function generateCodeChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return base64urlencode(digest);
+}
+
+async function connectSpotify() {
+  const redirectUri = location.href.split('?')[0].split('#')[0];
+  const verifier = await generateCodeVerifier();
+  const challenge = await generateCodeChallenge(verifier);
+  sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('redirect_uri', redirectUri);
+  const url = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(SCOPES)}&code_challenge_method=S256&code_challenge=${challenge}`;
+  window.location.href = url;
+}
+
+async function exchangeCode(code) {
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  const redirectUri = sessionStorage.getItem('redirect_uri');
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code, redirect_uri: redirectUri,
+      client_id: CLIENT_ID,
+      code_verifier: verifier
+    })
+  });
+  const data = await res.json();
+  return data.access_token;
+}
+
+window.onload = async () => {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if (code) {
+    window.history.replaceState({}, '', location.pathname);
+    try {
+      token = await exchangeCode(code);
+      if (token) { showApp(); return; }
+    } catch(e) { alert('Auth failed. Please try again.'); }
+  }
+  document.getElementById('auth-screen').style.display = 'flex';
+};
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  handleFile(e.dataTransfer.files[0]);
+}
+
+function handleFile(file) {
+  if (!file) return;
+  imageFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('preview-img');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    document.getElementById('drop-placeholder').style.display = 'none';
+    document.getElementById('extract-btn').style.display = 'inline-block';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function extractSongs() {
+  if (!imageFile) return;
+  const btn = document.getElementById('extract-btn');
+  btn.disabled = true; btn.textContent = 'Extracting songs...';
+  try {
+    const base64 = await new Promise((res,rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(imageFile);
+    });
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514', max_tokens: 1000,
+        messages: [{role:'user', content:[
+          {type:'image', source:{type:'base64', media_type:imageFile.type, data:base64}},
+          {type:'text', text:'Extract all song titles and artist names from this image. Return ONLY a plain list, one song per line, in the format: Artist - Song Title. No numbering, no extra text, no markdown.'}
+        ]}]
+      })
+    });
+    const data = await response.json();
+    const extracted = data.content.find(b=>b.type==='text')?.text || '';
+    const existing = document.getElementById('songs').value.trim();
+    document.getElementById('songs').value = existing ? existing+'\n'+extracted : extracted;
+  } catch(e) { alert('Failed to extract. Please type songs manually.'); }
+  btn.disabled = false; btn.textContent = '✦ Extract songs from image';
+}
+
+function addStatus(msg, type='info') {
+  const log = document.getElementById('status-log');
+  log.style.display = 'block';
+  const line = document.createElement('div');
+  line.className = `status-line ${type}`;
+  line.textContent = msg;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function searchTrack(query) {
+  const res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`, {
+    headers: {Authorization:`Bearer ${token}`}
+  });
+  const data = await res.json();
+  return data.tracks?.items?.[0]?.uri || null;
+}
+
+async function createPlaylist() {
+  const name = document.getElementById('playlist-name').value.trim();
+  const songs = document.getElementById('songs').value.trim();
+  if (!name) { alert('Please enter a playlist name'); return; }
+  if (!songs) { alert('Please add some songs first'); return; }
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true; btn.textContent = 'Creating playlist...';
+  document.getElementById('status-log').innerHTML = '';
+  document.getElementById('status-log').style.display = 'none';
+  document.getElementById('success-box').style.display = 'none';
+  try {
+    addStatus('Connecting to Spotify...');
+    const me = await (await fetch('https://api.spotify.com/v1/me', {headers:{Authorization:`Bearer ${token}`}})).json();
+    addStatus('Creating playlist...');
+    const pl = await (await fetch(`https://api.spotify.com/v1/users/${me.id}/playlists`, {
+      method:'POST', headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
+      body: JSON.stringify({name, public:true, description:'Created with Playlist Forge + Claude'})
+    })).json();
+    const lines = songs.split('\n').map(l=>l.trim()).filter(Boolean);
+    const uris = [];
+    for (const line of lines) {
+      addStatus(`Searching: ${line}`);
+      const uri = await searchTrack(line);
+      if (uri) { uris.push(uri); addStatus(`✓ Found: ${line}`, 'success'); }
+      else { addStatus(`✗ Not found: ${line}`, 'error'); }
+    }
+    if (uris.length > 0) {
+      await fetch(`https://api.spotify.com/v1/playlists/${pl.id}/tracks`, {
+        method:'POST', headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
+        body: JSON.stringify({uris})
+      });
+      addStatus(`🎉 Done! Created playlist with ${uris.length} tracks.`, 'success');
+      document.getElementById('playlist-link').href = pl.external_urls.spotify;
+      document.getElementById('success-box').style.display = 'block';
+    } else { addStatus('No tracks found. Try adjusting the song format.', 'error'); }
+  } catch(e) { addStatus('Something went wrong. Reopen the file and try again.', 'error'); }
+  btn.disabled = false; btn.textContent = 'Create Playlist on Spotify →';
+}
+</script>
+</body>
+</html>
