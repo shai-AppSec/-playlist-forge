@@ -134,10 +134,17 @@ async function exchangeCode(code) {
     })
   });
   const data = await res.json();
+  if (data.access_token) {
+    sessionStorage.setItem('spotify_access_token', data.access_token);
+  }
   return data.access_token;
 }
 
 window.onload = async () => {
+  // Check for stored token first
+  const stored = sessionStorage.getItem('spotify_access_token');
+  if (stored) { token = stored; showApp(); return; }
+
   const params = new URLSearchParams(location.search);
   const code = params.get('code');
   if (code) {
@@ -145,7 +152,8 @@ window.onload = async () => {
     try {
       token = await exchangeCode(code);
       if (token) { showApp(); return; }
-    } catch(e) { alert('Auth failed. Please try again.'); }
+      else { alert('Auth failed - no token received. Please try again.'); }
+    } catch(e) { alert('Auth failed: ' + e.message); }
   }
   document.getElementById('auth-screen').style.display = 'flex';
 };
