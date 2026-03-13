@@ -49,7 +49,10 @@
 </div>
 
 <div class="container" id="app-screen" style="display:none">
-  <h1>Playlist Forge</h1>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <h1>Playlist Forge</h1>
+    <button onclick="logout()" style="background:transparent;border:1px solid #333;color:#555;padding:6px 16px;border-radius:50px;cursor:pointer;font-family:'DM Mono',monospace;font-size:11px">Disconnect</button>
+  </div>
   <p class="subtitle">Connected to Spotify ✓</p>
 
   <div class="field">
@@ -229,6 +232,15 @@ async function searchTrack(query) {
   });
   const data = await res.json();
   return data.tracks?.items?.[0]?.uri || null;
+}
+
+function logout() {
+  sessionStorage.removeItem('spotify_access_token');
+  sessionStorage.removeItem('pkce_verifier');
+  sessionStorage.removeItem('redirect_uri');
+  token = null;
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
 }
 
 async function createPlaylist() {
